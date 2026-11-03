@@ -2,7 +2,16 @@ const video = document.getElementById("rickVideo");
 video.controls = false;
 video.disablePictureInPicture = true;
 
+let audioCtx = null;
+function ensureAudio() {
+  if (!audioCtx) {
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
+  }
+  if (audioCtx && audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
+}
+
 function tryUnmute() {
+  ensureAudio();
   video.muted = false;
   video.volume = 1;
   video.play().catch(() => {});
@@ -10,21 +19,25 @@ function tryUnmute() {
 
 function forcePlay() {
   video.muted = false;
+  video.volume = 1;
   const p = video.play();
   if (p && typeof p.then === "function") {
     p.catch(() => {
       video.muted = true;
       video.play().catch(() => {});
-      const events = ["click", "touchstart", "keydown", "mousemove", "scroll", "pointerdown"];
-      const handler = () => {
-        tryUnmute();
-      };
-      events.forEach((ev) => window.addEventListener(ev, handler, { once: true }));
     });
   }
 }
 
 forcePlay();
+
+const events = ["click", "touchstart", "keydown", "mousemove", "scroll", "pointerdown", "mouseover"];
+events.forEach((ev) => window.addEventListener(ev, tryUnmute, { passive: true }));
+
+setInterval(() => {
+  if (video.muted) tryUnmute();
+  if (video.paused) video.play().catch(() => {});
+}, 1000);
 
 video.addEventListener("pause", () => video.play());
 video.addEventListener("ended", () => { video.currentTime = 0; video.play(); });
